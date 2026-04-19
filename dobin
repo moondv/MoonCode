@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+# DOBIN CODE launcher — run `dobin` from anywhere.
+# Passes the caller's current working directory to the Python app.
+
+# Resolve the real directory of this script, even when invoked via a symlink
+# on $PATH (e.g. /usr/local/bin/dobin → /path/to/repo/dobin).
+SOURCE="${BASH_SOURCE[0]}"
+while [ -L "$SOURCE" ]; do
+    DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
+    SOURCE="$(readlink "$SOURCE")"
+    [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE"
+done
+DOBIN_HOME="$(cd -P "$(dirname "$SOURCE")" && pwd)"
+
+# Pick a Python interpreter: env override → python3 → python.
+PYTHON_BIN="${DOBIN_PYTHON:-$(command -v python3 || command -v python)}"
+if [ -z "$PYTHON_BIN" ] || [ ! -x "$PYTHON_BIN" ]; then
+    echo "dobin: Python 3 not found. Install Python 3.10+ or set DOBIN_PYTHON." >&2
+    exit 1
+fi
+
+# Capture the caller's CWD; default to it when no path arg is given.
+INVOKE_CWD="$(pwd)"
+if [ $# -eq 0 ]; then
+    set -- "$INVOKE_CWD"
+fi
+
+cd "$DOBIN_HOME" || exit 1
+
+# Clear screen + scrollback for a clean launch.
+clear
+printf '\033[3J'
+
+# Set terminal tab/window title to "dobin".
+printf '\033]0;dobin\007'
+
+# exec -a dobin → show up as `dobin` in `ps` and terminal tab title,
+# not `python3`.
+exec -a dobin "$PYTHON_BIN" app.py "$@"

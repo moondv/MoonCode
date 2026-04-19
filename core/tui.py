@@ -74,6 +74,8 @@ _SLASH_KEYS = [
     ("/history",  "cmd.history"),
     ("/dir",      "cmd.dir"),
     ("/language", "cmd.language"),
+    ("/compact",  "cmd.compact"),
+    ("/consent",  "cmd.consent"),
     ("/quit",     "cmd.quit"),
 ]
 
@@ -225,6 +227,11 @@ class DobinTUI:
         self._model_popup_index = 0
         self._model_popup_on_select = None
 
+        # bash 실행 동의 팝업 상태
+        self._consent_popup_open = False
+        self._consent_popup_command = ""
+        self._consent_popup_on_choice = None
+
         # 입력 버퍼
         self.input_buffer = Buffer(
             completer=self._completer(),
@@ -306,7 +313,8 @@ class DobinTUI:
 
         # 상태바
         def _status_line():
-            left = t("status.busy") if self.is_busy else ""
+            busy = t("status.busy") if self.is_busy else ""
+            left = self._token_usage_label() + busy
             right = f"{self.agent.model}  "
             w = _term_width()
             pad = max(1, w - len(left) - len(right))
@@ -349,6 +357,25 @@ class DobinTUI:
             ),
         )
 
+        # bash 실행 동의 팝업
+        consent_control = FormattedTextControl(
+            text=self._get_consent_popup_fragments,
+            focusable=False,
+        )
+        self.consent_window = Window(
+            content=consent_control,
+            width=D(min=50, preferred=80, max=110),
+            height=D(min=6, preferred=10, max=18),
+            style="class:popup",
+            always_hide_cursor=True,
+        )
+        consent_float = Float(
+            content=ConditionalContainer(
+                content=self.consent_window,
+                filter=Condition(lambda: self._consent_popup_open),
+            ),
+        )
+
         return Layout(
             FloatContainer(
                 content=body,
@@ -359,6 +386,7 @@ class DobinTUI:
                         content=CompletionsMenu(max_height=6, scroll_offset=1),
                     ),
                     popup_float,
+                    consent_float,
                 ],
             ),
             focused_element=self.input_window,
@@ -389,7 +417,10 @@ class DobinTUI:
         kb = KeyBindings()
 
         popup_open = Condition(lambda: self._model_popup_open)
-        popup_closed = Condition(lambda: not self._model_popup_open)
+        popup_closed = Condition(
+            lambda: not self._model_popup_open and not self._consent_popup_open
+        )
+        consent_open = Condition(lambda: self._consent_popup_open)
 
         @kb.add("c-c")
         @kb.add("c-d")
@@ -449,6 +480,24 @@ class DobinTUI:
         def _(event):
             self._model_popup_open = False
             self._model_popup_on_select = None
+
+        # 동의 팝업 조작
+        @kb.add("y", filter=consent_open)
+        @kb.add("Y", filter=consent_open)
+        def _(event):
+            self._resolve_consent(True)
+
+        @kb.add("n", filter=consent_open)
+        @kb.add("N", filter=consent_open)
+        @kb.add("escape", filter=consent_open)
+        @kb.add("c-g", filter=consent_open)
+        def _(event):
+            self._resolve_consent(False)
+
+        @kb.add("enter", filter=consent_open)
+        def _(event):
+            # 기본값 = 허용 (y)
+            self._resolve_consent(True)
 
         # ── 로그 스크롤 ──
         # 1) 마우스/트랙패드 휠 (mouse_support=True일 때 prompt_toolkit이 방출)
@@ -604,6 +653,21 @@ class DobinTUI:
         if self.app is not None:
             self.app.invalidate()
 
+    def _token_usage_label(self):
+        """상태바 좌측에 표시할 토큰 사용량 레이블."""
+        try:
+            used = self.agent.estimate_tokens()
+            window = self.agent.context_window
+        except Exception:
+            return ""
+        if not window:
+            return ""
+
+        def _fmt(n):
+            return f"{n/1000:.1f}K"
+
+        return f"  {_fmt(used)} / {_fmt(window)} "
+
     def _append_banner(self):
         def render(c):
             c.print()
@@ -663,6 +727,63 @@ class DobinTUI:
                 break
         self._model_popup_on_select = on_select
         self._model_popup_open = True
+        if self.app is not None:
+            self.app.invalidate()
+
+    # ─── 실행 동의 팝업 ──────────────────────────────────
+
+    def _get_consent_popup_fragments(self):
+        if not self._consent_popup_open:
+            return []
+
+        width = 76
+
+        def pad(s, w):
+            visible = 0
+            for ch in s:
+                visible += 2 if ord(ch) > 0x2e80 else 1
+            return s + " " * max(0, w - visible)
+
+        cmd = self._consent_popup_command or ""
+        # 긴 명령어는 여러 줄로 쪼갬
+        cmd_lines = []
+        remaining = cmd
+        body_w = width - 6
+        while remaining:
+            cmd_lines.append(remaining[:body_w])
+            remaining = remaining[body_w:]
+        if not cmd_lines:
+            cmd_lines = [""]
+
+        frags = []
+        frags.append(("class:popup", pad("", width) + "\n"))
+        frags.append(("class:popup.title", pad(t("consent.title"), width) + "\n"))
+        frags.append(("class:popup", pad("", width) + "\n"))
+        for line in cmd_lines:
+            frags.append(("class:popup.item", pad(f"   $ {line}", width) + "\n"))
+        frags.append(("class:popup", pad("", width) + "\n"))
+        frags.append(("class:popup.hint", pad(t("consent.hint"), width) + "\n"))
+        frags.append(("class:popup", pad("", width)))
+        return frags
+
+    def open_consent_popup(self, command: str, on_choice):
+        """bash 실행 동의 팝업을 연다. on_choice(approved: bool)이 호출됨."""
+        self._consent_popup_command = command
+        self._consent_popup_on_choice = on_choice
+        self._consent_popup_open = True
+        if self.app is not None:
+            self.app.invalidate()
+
+    def _resolve_consent(self, approved: bool):
+        cb = self._consent_popup_on_choice
+        self._consent_popup_open = False
+        self._consent_popup_on_choice = None
+        self._consent_popup_command = ""
+        if cb is not None:
+            try:
+                cb(approved)
+            except Exception:
+                pass
         if self.app is not None:
             self.app.invalidate()
 

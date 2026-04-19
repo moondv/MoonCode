@@ -16,9 +16,12 @@ DEFAULT_MODEL = "kimi-k2.5:cloud"
 DEFAULT_CONFIG = {
     "model": DEFAULT_MODEL,
     "workdir": os.getcwd(),
-    "max_iterations": 20,
+    "max_iterations": None,  # None = unlimited
     "language": "en",
     "dobin_folder": "dobin_code",
+    "context_window": 128_000,      # model context window (tokens)
+    "auto_compact_ratio": 0.85,     # compact when estimated tokens exceed ratio × window
+    "bash_consent": True,  # ask user before running bash commands
 }
 
 def load_config():

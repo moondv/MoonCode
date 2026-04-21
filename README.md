@@ -51,7 +51,7 @@ Plan, edit, test, and commit — in Korean — from a full-screen TUI, powered b
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/<your-username>/dobin-code.git
+git clone https://github.com/dvbin/dobin_code.git
 cd dobin-code
 
 # 2. Install Python dependencies

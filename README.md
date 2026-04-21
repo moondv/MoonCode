@@ -52,7 +52,7 @@ Plan, edit, test, and commit — in Korean — from a full-screen TUI, powered b
 ```bash
 # 1. Clone the repository
 git clone https://github.com/dvbin/dobin_code.git
-cd dobin-code
+cd dobin_code
 
 # 2. Install Python dependencies
 pip install -r requirements.txt
@@ -81,7 +81,7 @@ dobin
 ### Updating
 
 ```bash
-cd /path/to/dobin-code
+cd /path/to/dobin_code
 git pull
 ```
 
@@ -91,7 +91,7 @@ No reinstall needed — the symlink always points at the latest checkout.
 
 ```bash
 sudo rm /usr/local/bin/dobin
-rm -rf /path/to/dobin-code
+rm -rf /path/to/dobin_code
 rm ~/.dobin_config.json    # optional, removes saved settings
 ```
 

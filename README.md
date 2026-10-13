@@ -1,6 +1,6 @@
 <div align="center">
 
-# DOBIN CODE
+# MoonCode
 
 **A Korean-first AI coding assistant in your terminal.**
 
@@ -8,10 +8,6 @@ Plan, edit, test, and commit — in Korean — from a full-screen TUI, powered b
 [Ollama](https://ollama.com/) and local/cloud LLMs.
 
 [Features](#features) · [Install](#installation) · [Usage](#usage) · [Commands](#slash-commands) · [Architecture](#architecture) · [Configuration](#configuration)
-
-<br />
-
-<img src="docs/images/screenshot.png" alt="DOBIN CODE in action" width="820" />
 
 </div>
 
@@ -141,7 +137,7 @@ New messages always snap the view back to the bottom.
 ## Architecture
 
 ```
-dobin code/
+MoonCode/
 ├── dobin                 # bash launcher (sets argv[0]=dobin, OSC title)
 ├── app.py                # CLI entry — parses args, builds config, starts agent
 ├── core/
